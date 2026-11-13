@@ -1,9 +1,10 @@
-/* 祈願板 widget.js v3 － 佈告欄版（GitHub Pages 管道＋主站備援，請存成 UTF-8）
+/* 祈願板 widget.js v4 － 佈告欄版（GitHub Pages 管道＋主站備援＋熱門排序＋點閱數，請存成 UTF-8）
  * 貼在 CMS 萬用欄位：
  * <div id="wish-widget" data-rows="2" data-chars="36" data-auto="0" data-title=""></div>
- * <script src="https://cisiancjyang.github.io/wish-board/widget.js?v=3" charset="utf-8" defer></script>
+ * <script src="https://cisiancjyang.github.io/wish-board/widget.js?v=4" charset="utf-8" defer></script>
  * 參數：data-rows 每頁掛幾排（預設 2）｜data-chars 卡片預覽字數（預設 36）
- *       data-auto 自動翻頁秒數（預設 0＝不自動翻）｜data-max 最多載入幾則（預設 100）｜data-title 自訂標題 */
+ *       data-auto 自動翻頁秒數（預設 0＝不自動翻）｜data-max 最多載入幾則（預設 100）｜data-title 自訂標題
+ *       data-view-url 點閱計數端點（Apps Script 網頁應用程式網址，選填；不填則只顯示、不累計）*/
 (function () {
   var me = document.currentScript;
   var base = me ? me.src.replace(/[^\/]*$/, '') : 'https://cisiancjyang.github.io/wish-board/';
@@ -21,6 +22,9 @@
 .hd b{font-size:20px;letter-spacing:.12em;color:#fbe9c0;background:linear-gradient(#a8261d,#7d1711);padding:6px 20px;border-radius:6px;box-shadow:0 3px 6px rgba(0,0,0,.4),inset 0 0 0 2px #e8c26a}
 .hd a{display:inline-block;margin-left:6px;padding:6px 16px;border-radius:999px;background:#b3261e;color:#fff;text-decoration:none;font-size:14px;box-shadow:0 2px 4px rgba(0,0,0,.3)}
 .hd a.o{background:#fff8e6;color:#8e1b15;border:1px solid #b3261e}
+.tb{display:flex;gap:8px;margin:0 0 6px}
+.tab{padding:5px 16px;border-radius:999px;border:1px solid #7d1711;background:#fff8e6;color:#8e1b15;font:inherit;font-size:14px;cursor:pointer}
+.tab.on{background:#7d1711;color:#fbe9c0}
 .g{display:grid;grid-auto-rows:${ROWH}px}
 .c{position:relative;padding:16px 8px 0}
 .c:before{content:"";position:absolute;top:0;left:0;right:0;height:11px;background:linear-gradient(#e0453a,#8e1b15);box-shadow:0 2px 4px rgba(0,0,0,.4)}
@@ -78,7 +82,7 @@
     mi.appendChild(it.lock ? el('div', 'ml', '\ud83d\udd12 這是一則私密祈願，內容不公開') : el('div', 'mt', it.text));
     if (it.reply) mi.appendChild(el('div', 'mr', '\u26e9\ufe0f 回覆：' + it.reply));
     var f = el('div', 'mf'); f.appendChild(el('span', '', '\u2014 ' + (it.name || '匿名')));
-    f.appendChild(el('span', '', '\ud83d\ude4f' + it.likes + '　' + dt(it.ts))); mi.appendChild(f);
+    f.appendChild(el('span', '', '\ud83d\udc41' + (it.views || 0) + '　\ud83d\ude4f' + it.likes + '　' + dt(it.ts))); mi.appendChild(f);
     mp.appendChild(mi); m.appendChild(x); m.appendChild(mp); ov.appendChild(m); root.appendChild(ov);
     current = ov;
     ov.addEventListener('click', function (e) { if (e.target === ov) closeModal(); });
@@ -118,6 +122,20 @@
     var auto = parseFloat(host.getAttribute('data-auto')) || 0;
     var max = parseInt(host.getAttribute('data-max')) || 100;
     var items = (F && F.items) ? F.items.slice(0, max) : [];
+    var viewUrl = host.getAttribute('data-view-url') || '', tab = 'new';
+    function newCmp(a, b) { return (b.pin - a.pin) || (b.ts - a.ts) || (b.id - a.id); }
+    function hotCmp(a, b) { return ((b.views || 0) - (a.views || 0)) || (b.likes - a.likes) || (b.ts - a.ts) || (b.id - a.id); }
+    items.sort(newCmp);
+    function track(it) {
+      if (!viewUrl) return;
+      try {
+        var k = 'wv' + it.id, last = +localStorage.getItem(k) || 0;
+        if (Date.now() - last < 6 * 3600 * 1000) return; // 同一瀏覽器 6 小時內只算一次
+        localStorage.setItem(k, String(Date.now()));
+      } catch (e) {}
+      it.views = (it.views || 0) + 1;
+      try { new Image().src = viewUrl + (viewUrl.indexOf('?') < 0 ? '?' : '&') + 'view=' + it.id + '&t=' + Date.now(); } catch (e) {}
+    }
     var root = host.attachShadow ? (host.shadowRoot || host.attachShadow({ mode: 'open' })) : host;
     root.innerHTML = '';
     var st = el('style'); st.textContent = CSS; root.appendChild(st);
@@ -134,10 +152,12 @@
       bd.appendChild(el('div', 'm0', F ? '\ud83c\udf38 還沒有祈願牌，歡迎成為第一位祈願者！' : '祈願資料載入中\u2026'));
       return;
     }
+    var tb = el('div', 'tb'), tNew = el('button', 'tab on', '\ud83d\udd50 最新'), tHot = el('button', 'tab', '\ud83d\udd25 熱門');
+    tNew.type = tHot.type = 'button'; tb.appendChild(tNew); tb.appendChild(tHot); bd.appendChild(tb);
     var g = el('div', 'g'), pg = el('div', 'pg'); bd.appendChild(g); bd.appendChild(pg);
     var page = 0, perPage = 0, pages = 1, hover = false;
 
-    function card(it, idx) {
+    function card(it, idx, rank) {
       var c = el('div', 'c'), d = el('div', 'd'), b = el('button', 'e');
       c.style.setProperty('--s', (idx * 60) + 'ms');
       b.type = 'button';
@@ -146,12 +166,13 @@
       b.style.setProperty('--w', '-' + (it.id % 7) + 's');
       b.setAttribute('aria-label', '開啟祈願：' + it.cl + '，' + (it.name || '匿名'));
       var p = el('div', 'p'), i = el('div', 'i');
-      i.appendChild(el('div', 'k', (it.pin ? '\ud83d\udccc ' : '') + it.ci + ' ' + it.cl));
+      var medal = (tab === 'hot' && rank >= 0 && rank < 3 && (it.views || 0) > 0) ? ['\ud83e\udd47', '\ud83e\udd48', '\ud83e\udd49'][rank] + ' ' : '';
+      i.appendChild(el('div', 'k', medal + (it.pin ? '\ud83d\udccc ' : '') + it.ci + ' ' + it.cl));
       i.appendChild(it.lock ? el('div', 'l', '\ud83d\udd12 私密祈願') : el('div', 't', cut(it.text, chars)));
       var f1 = el('div', 'f'); f1.appendChild(el('span', '', '\u2014 ' + (it.name || '匿名'))); f1.appendChild(el('span', '', '\ud83d\ude4f' + it.likes)); i.appendChild(f1);
-      var f2 = el('div', 'f'); f2.appendChild(el('span', '', dt(it.ts))); if (it.reply) f2.appendChild(el('span', '', '\u26e9\ufe0f')); i.appendChild(f2);
+      var f2 = el('div', 'f'); f2.appendChild(el('span', '', dt(it.ts))); f2.appendChild(el('span', '', '\ud83d\udc41' + (it.views || 0) + (it.reply ? ' \u26e9\ufe0f' : ''))); i.appendChild(f2);
       p.appendChild(i); b.appendChild(p); d.appendChild(b); c.appendChild(d);
-      b.addEventListener('click', function () { openModal(root, it, b); });
+      b.addEventListener('click', function () { track(it); openModal(root, it, b); });
       return c;
     }
 
@@ -167,7 +188,7 @@
 
     function renderPage() {
       g.innerHTML = '';
-      items.slice(page * perPage, page * perPage + perPage).forEach(function (it, k) { g.appendChild(card(it, k)); });
+      items.slice(page * perPage, page * perPage + perPage).forEach(function (it, k) { g.appendChild(card(it, k, page * perPage + k)); });
       renderPager();
     }
     function go(n) { page = Math.max(0, Math.min(pages - 1, n)); renderPage(); }
@@ -182,6 +203,11 @@
         renderPage();
       }
     }
+    function setTab(t) {
+      tab = t; tNew.className = 'tab' + (t === 'new' ? ' on' : ''); tHot.className = 'tab' + (t === 'hot' ? ' on' : '');
+      items.sort(t === 'hot' ? hotCmp : newCmp); page = 0; renderPage();
+    }
+    tNew.onclick = function () { setTab('new'); }; tHot.onclick = function () { setTab('hot'); };
     layout();
     if (window.ResizeObserver) new ResizeObserver(layout).observe(g); else window.addEventListener('resize', layout);
 
