@@ -1,8 +1,8 @@
-/* 祈願板 widget.js v5 － 互動佈告欄版（GitHub Pages 管道＋主站備援，請存成 UTF-8）
+/* 祈願板 widget.js v6 － 互動佈告欄版（GitHub Pages 管道＋主站備援，請存成 UTF-8）
  * 外觀與功能同 board.php：最新／熱門排序、關鍵字搜尋、頁碼分頁、分類浮水印小圖示、點閱數、花瓣與鳥居背景
  * 貼在 CMS 萬用欄位：
  * <div id="wish-widget" data-per="5" data-chars="40" data-title="" data-view-url=""></div>
- * <script src="https://cisiancjyang.github.io/wish-board/widget.js?v=5" charset="utf-8" defer></script>
+ * <script src="https://cisiancjyang.github.io/wish-board/widget.js?v=6" charset="utf-8" defer></script>
  * 參數：data-per 每頁幾則（預設 5）｜data-chars 卡片預覽字數（預設 40）｜data-max 最多載入幾則（預設 100）
  *       data-title 自訂標題｜data-view-url 點閱計數端點（Apps Script 網頁應用程式網址，選填；不填則只顯示、不累計） */
 (function () {
@@ -30,7 +30,7 @@
 .sb button{display:none;position:absolute;right:4px;top:4px;width:26px;height:26px;border:0;border-radius:50%;background:#b3261e;color:#fff;font-size:12px;line-height:1;cursor:pointer}
 .sb.has button{display:block}
 mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
-.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));grid-auto-rows:196px;min-height:196px}
+.g{display:grid;grid-template-columns:repeat(var(--n,5),minmax(0,1fr));grid-auto-rows:196px;min-height:196px}
 .empty{grid-column:1/-1;padding:56px 12px;text-align:center;color:#fbe9c0;font-size:15px;background:rgba(60,30,10,.55);border-radius:10px;margin-top:16px;height:120px}
 .c{position:relative;padding:16px 8px 0}
 .c:before{content:"";position:absolute;top:0;left:0;right:0;height:11px;background:linear-gradient(#e0453a,#8e1b15);box-shadow:0 2px 4px rgba(0,0,0,.4)}
@@ -143,7 +143,12 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
         localStorage.setItem(k, String(Date.now()));
       } catch (e) {}
       it.views = (it.views || 0) + 1;
-      try { new Image().src = viewUrl + (viewUrl.indexOf('?') < 0 ? '?' : '&') + 'view=' + it.id + '&t=' + Date.now(); } catch (e) {}
+      var vu = viewUrl + (viewUrl.indexOf('?') < 0 ? '?' : '&') + 'view=' + it.id + '&t=' + Date.now();
+      // 用 credentials:'omit' 不帶任何 Google 登入資訊（等同無痕），避免訪客登入學校帳號或多帳號時出現「無法開啟檔案」而計不到
+      try {
+        if (window.fetch) fetch(vu, { mode: 'no-cors', credentials: 'omit', referrerPolicy: 'no-referrer', keepalive: true })['catch'](function () { new Image().src = vu; });
+        else new Image().src = vu;
+      } catch (e) { try { new Image().src = vu; } catch (e2) {} }
       var n = app.querySelector('[data-v="' + it.id + '"]'); if (n) n.textContent = '\ud83d\udc41' + it.views;
     }
 
@@ -229,7 +234,21 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
       for (var i = 0; i < terms.length; i++) if (hay.indexOf(terms[i]) < 0) return false;
       return true;
     }
+    /* ----- 固定欄數：欄數＝每頁筆數；容器太窄時自動減欄，且每頁筆數維持為欄數的整數倍，不留空格 ----- */
+    var cols = 0;
+    function fit() {
+      var w = bd.clientWidth - 52;   // 扣掉外框 12×2 與內距 14×2
+      var c = w > 0 ? Math.max(1, Math.min(D.per, Math.floor(w / 128))) : D.per;
+      cols = c;
+      per = c * Math.max(1, Math.round(D.per / c));
+      g.style.setProperty('--n', c);
+    }
+    function onSize() { var old = cols; fit(); if (cols !== old) refresh(); }
+    if (window.ResizeObserver) new ResizeObserver(onSize).observe(host);
+    window.addEventListener('resize', onSize);
+
     function refresh() {
+      fit();
       var raw = q.trim().toLowerCase();
       terms = raw ? raw.split(/\s+/).filter(Boolean) : [];
       re = terms.length ? new RegExp(terms.map(esc).join('|'), 'gi') : null;
@@ -298,7 +317,7 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
     refresh();
   }
 
-  /* ---------- 載入資料：先 GitHub（與 widget.js 同位置），失敗再用主站 ----------- */
+  /* ---------- 載入資料：先 GitHub（與 widget.js 同位置），失敗再用主站 ---------- */
   function start() {
     var hosts = document.querySelectorAll('#wish-widget,[data-wish-widget]');
     if (!hosts.length) return;
