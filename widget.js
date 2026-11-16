@@ -164,7 +164,7 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
       else { var mt = el('div', 'mt'); mt.appendChild(hl(it.text)); mi.appendChild(mt); }
       if (it.reply) mi.appendChild(el('div', 'mr', '\u26e9\ufe0f 回覆：' + it.reply));
       var f = el('div', 'mf'); f.appendChild(el('span', '', '\u2014 ' + (it.name || '匿名')));
-      var fv = el('span', '', '\ud83d\udc41' + (it.views || 0) + '　\ud83d\ude4f' + it.likes + '　' + dt(it.ts)); f.appendChild(fv); mi.appendChild(f);
+      var fv = el('span', '', '\ud83d\udc41' + (it.views || 0) + '　' + dt(it.ts)); f.appendChild(fv); mi.appendChild(f);
       mp.appendChild(mi); m.appendChild(x); m.appendChild(mp); ov.appendChild(m); app.appendChild(ov);
       current = ov;
       ov.addEventListener('click', function (e) { if (e.target === ov) closeModal(); });
@@ -180,7 +180,7 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
       }
       var before = it.views || 0;
       track(it);
-      if ((it.views || 0) !== before) fv.textContent = '\ud83d\udc41' + it.views + '　\ud83d\ude4f' + it.likes + '　' + dt(it.ts);
+      if ((it.views || 0) !== before) fv.textContent = '\ud83d\udc41' + it.views + '　' + dt(it.ts);
     }
     function closeModal(now) {
       var ov = current; if (!ov) return; current = null;
@@ -274,9 +274,10 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
       if (it.lock) i.appendChild(el('div', 'l', '\ud83d\udd12 私密祈願'));
       else { var t = el('div', 't'); t.appendChild(snippet(it.text)); i.appendChild(t); }
       var f1 = el('div', 'f'), nm = el('span'); nm.appendChild(tx('\u2014 ')); nm.appendChild(hl(it.name || '匿名'));
-      f1.appendChild(nm); f1.appendChild(el('span', '', '\ud83d\ude4f' + it.likes)); i.appendChild(f1);
-      var f2 = el('div', 'f'), rt = el('span'), vs = el('span', '', '\ud83d\udc41' + (it.views || 0));
-      vs.setAttribute('data-v', it.id); rt.appendChild(vs); if (it.reply) rt.appendChild(tx(' \u26e9\ufe0f'));
+      var vs = el('span', '', '\ud83d\udc41' + (it.views || 0)); vs.setAttribute('data-v', it.id);
+      f1.appendChild(nm); f1.appendChild(vs); i.appendChild(f1);
+      var f2 = el('div', 'f'), rt = el('span');
+      if (it.reply) rt.appendChild(tx('\u26e9\ufe0f'));
       f2.appendChild(el('span', '', dt(it.ts))); f2.appendChild(rt); i.appendChild(f2);
       p.appendChild(i); b.appendChild(p); d.appendChild(b); c.appendChild(d);
       b.addEventListener('click', function () { openModal(it, b); });
