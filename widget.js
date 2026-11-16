@@ -298,7 +298,7 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
     refresh();
   }
 
-  /* ---------- 載入資料：先 GitHub（與 widget.js 同位置），失敗再用主站 ---------- */
+  /* ---------- 載入資料：先 GitHub（與 widget.js 同位置），失敗再用主站 ----------- */
   function start() {
     var hosts = document.querySelectorAll('#wish-widget,[data-wish-widget]');
     if (!hosts.length) return;
