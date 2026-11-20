@@ -1,14 +1,16 @@
-/* 祈願板 widget.js v6 － 互動佈告欄版（GitHub Pages 管道＋主站備援，請存成 UTF-8）
+/* 祈願板 widget.js v7 － 互動佈告欄版（GitHub Pages 管道＋主站備援，請存成 UTF-8）
  * 外觀與功能同 board.php：最新／熱門排序、關鍵字搜尋、頁碼分頁、分類浮水印小圖示、點閱數、花瓣與鳥居背景
+ * v7 更新：點閱數改由 Apps Script 累計；載入時讀取 ?counts=1，與 feed.js 的舊點閱數相加後顯示（重新整理不再歸零）
  * 貼在 CMS 萬用欄位：
- * <div id="wish-widget" data-per="5" data-chars="40" data-title="" data-view-url=""></div>
- * <script src="https://cisiancjyang.github.io/wish-board/widget.js?v=6" charset="utf-8" defer></script>
+ * <div id="wish-widget" data-per="5" data-chars="40" data-title="" data-view-url="https://script.google.com/macros/s/你的部署ID/exec"></div>
+ * <script src="https://cisiancjyang.github.io/wish-board/widget.js?v=7" charset="utf-8" defer></script>
  * 參數：data-per 每頁幾則（預設 5）｜data-chars 卡片預覽字數（預設 40）｜data-max 最多載入幾則（預設 100）
- *       data-title 自訂標題｜data-view-url 點閱計數端點（Apps Script 網頁應用程式網址，選填；不填則只顯示、不累計） */
+ *       data-title 自訂標題｜data-view-url 點閱計數端點（Apps Script 網頁應用程式 /exec 網址；不可含 /u/數字/） */
 (function () {
   var me = document.currentScript;
   var base = me ? me.src.replace(/[^\/]*$/, '') : 'https://cisiancjyang.github.io/wish-board/';
   var SITE = 'https://cisian.free.nf/Wish/'; // 祈願主站（「我要祈願」「看全部」一律連回這裡）
+  var DEFAULT_VIEW_URL = ''; // 若不想在每個嵌入碼填 data-view-url，可把 /exec 網址填在這裡
 
   var CSS = `
 :host{display:block}*{box-sizing:border-box}
@@ -79,14 +81,17 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
 
   function build(host) {
     var F = window.WISH_FEED || {};
-    var viewUrl = host.getAttribute('data-view-url') || '';
+    var viewUrl = (host.getAttribute('data-view-url') || DEFAULT_VIEW_URL || '').replace(/\s+/g, '');
     var D = {
       title: host.getAttribute('data-title') || F.title || '祈願板',
       site: SITE + 'index.php',
       total: F.total,
       per: parseInt(host.getAttribute('data-per')) || 5,
       chars: parseInt(host.getAttribute('data-chars')) || 40,
-      items: (F.items || []).slice(0, parseInt(host.getAttribute('data-max')) || 100)
+      // 複製每一則資料，避免同一頁有多個 widget 時彼此重複累加點閱數
+      items: (F.items || []).slice(0, parseInt(host.getAttribute('data-max')) || 100).map(function (o) {
+        var c = {}; for (var k in o) c[k] = o[k]; return c;
+      })
     };
     var items = D.items;
     var per = Math.max(2, D.per), chars = D.chars;
@@ -133,7 +138,7 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
       return f;
     }
 
-    /* ----- 點閱數 ----- */
+    /* ----- 點閱數：送出 +1 ----- */
     function track(it) {
       if (!canTrack || seen[it.id]) return;
       seen[it.id] = 1;
@@ -150,6 +155,28 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
         else new Image().src = vu;
       } catch (e) { try { new Image().src = vu; } catch (e2) {} }
       var n = app.querySelector('[data-v="' + it.id + '"]'); if (n) n.textContent = '\ud83d\udc41' + it.views;
+    }
+
+    /* ----- 點閱數：載入時讀取累計值（JSONP）並與 feed.js 的舊數字相加 ----- */
+    function loadCounts() {
+      if (!viewUrl) return;
+      var cb = '__wc' + Date.now() + Math.floor(Math.random() * 1000);
+      var sc = document.createElement('script');
+      function cleanup() { try { delete window[cb]; } catch (e) { window[cb] = undefined; } if (sc.parentNode) sc.parentNode.removeChild(sc); }
+      window[cb] = function (o) {
+        o = o || {};
+        items.forEach(function (it) {
+          var add = +o[it.id] || 0;
+          // 若讀取期間使用者已點開過（track 本機 +1），不重複計算那一次
+          it.views = (it.views || 0) + add;
+          if (seen[it.id] && add > 0) { /* 伺服器數字可能尚未含本次點擊，維持相加結果即可 */ }
+        });
+        cleanup();
+        refresh();
+      };
+      sc.onerror = cleanup;
+      sc.src = viewUrl + (viewUrl.indexOf('?') < 0 ? '?' : '&') + 'counts=1&callback=' + cb + '&t=' + Date.now();
+      document.head.appendChild(sc);
     }
 
     /* ----- 開啟／關閉留言 ----- */
@@ -316,6 +343,7 @@ mark{background:#ffe27a;color:#7d1711;border-radius:3px;padding:0 1px}
     clr.onclick = function () { inp.value = ''; onq(); inp.focus(); };
 
     refresh();
+    loadCounts();   // 先顯示 feed.js 的資料，再背景讀取 Apps Script 累計點閱數並更新畫面
   }
 
   /* ---------- 載入資料：先 GitHub（與 widget.js 同位置），失敗再用主站 ---------- */
